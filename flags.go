@@ -195,7 +195,9 @@ type Message struct {
 }
 type SCM struct {
 	ID          uint32  `json:"ID"`
+	EndpointID  uint32  `json:"EndpointID"`
 	Type        uint8   `json:"Type"`
+	EndpointType uint8  `json:"EndpointType"`
 	Consumption float64 `json:"Consumption"`
 }
 var homeMeteredConsumption = prometheus.NewGaugeVec(
@@ -225,8 +227,8 @@ func (pe PrometheusEncoder) Encode(e interface{}) error {
 
 	homeMeteredConsumption.With(
 		prometheus.Labels{
-			"id":   fmt.Sprint(msg.SCM.ID),
-			"type": fmt.Sprint(msg.SCM.Type)}).Set(msg.SCM.Consumption)
+			"id":   fmt.Sprint(msg.SCM.ID + msg.SCM.EndpointID),
+			"type": fmt.Sprint(msg.SCM.Type + msg.SCM.EndpointType)}).Set(msg.SCM.Consumption)
 
 	log.Printf("time: %s", msg.Time)
 	log.Printf("consumption: %s", msg.SCM.Consumption)
