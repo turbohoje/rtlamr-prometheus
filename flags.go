@@ -208,16 +208,10 @@ var homeMeteredConsumption = prometheus.NewGaugeVec(
 	[]string{"id", "type"},
 )
 func (pe PrometheusEncoder) Encode(e interface{}) error {
-	err := pe.Encoder.Encode(e)
+	//err := pe.Encoder.Encode(e)
 
-	log.Printf("hello "  )
 	s, _ := json.MarshalIndent(e, "", "\t")
-	log.Printf("%s", s)
-
-	//r := reflect.ValueOf(e)
-	//message := reflect.Indirect(r).FieldByName("Message")
-	//log.Print("%s", message)
-	//log.Print("%s", reflect.TypeOf(message))
+	//log.Printf("%s", s)
 
 	var msg Message
 	merr := json.Unmarshal(s, &msg)
@@ -230,14 +224,9 @@ func (pe PrometheusEncoder) Encode(e interface{}) error {
 			"id":   fmt.Sprint(msg.SCM.ID + msg.SCM.EndpointID),
 			"type": fmt.Sprint(msg.SCM.Type + msg.SCM.EndpointType)}).Set(msg.SCM.Consumption)
 
-	log.Printf("time: %s", msg.Time)
-	log.Printf("consumption: %s", msg.SCM.Consumption)
-
-	//message_parts := reflect.ValueOf(message)
-	//con := reflect.Indirect(message_parts).FieldByName("Consumption")
-	//log.Print("con %s", con)
-	fmt.Println()
-	return err
+	log.Printf("time: %s, id: %s, consumption: %s \n", fmt.Sprint(msg.Time), fmt.Sprint(msg.SCM.ID + msg.SCM.EndpointID), fmt.Sprint(msg.SCM.Consumption))
+	
+	return merr
 }
 
 
