@@ -24,9 +24,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"time"
+	"net/http"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 
 	"github.com/bemasher/rtlamr/csv"
 	"github.com/bemasher/rtlamr/protocol"
@@ -46,7 +53,7 @@ var meterType MeterTypeFilter
 var unique = flag.Bool("unique", false, "suppress duplicate messages from each meter")
 
 var encoder Encoder
-var format = flag.String("format", "plain", "decoded message output format: plain, csv, json, or xml")
+var format = flag.String("format", "plain", "decoded message output format: plain, csv, json, xml, or prometheus")
 
 var single = flag.Bool("single", false, "one shot execution, if used with -filterid, will wait for exactly one packet from each meter id")
 
@@ -139,7 +146,27 @@ func HandleFlags() {
 		encoder = json.NewEncoder(os.Stdout)
 	case "xml":
 		encoder = NewLineEncoder{xml.NewEncoder(os.Stdout)}
+	case "prometheus":
+		encoder = PrometheusEncoder{xml.NewEncoder(os.Stdout)}
+		// borrowed from https://github.com/ixoo/rtlamr-prometheus/blob/master/main.go
+		log.Printf("Starting Prometheus")
+
+		prometheus.MustRegister(homeMeteredConsumption)
+		http.HandleFunc("/", HelloServer)
+		http.Handle("/metrics", promhttp.Handler())
+		go func() {
+			log.Fatal(http.ListenAndServe(":8080", nil))
+		}()
+		log.Printf("forked prometheus endpoint server :8080/metrics")
+
+
 	}
+}
+
+
+
+func HelloServer(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello, %s!", r.URL.Path[1:])
 }
 
 // JSON, XML and GOB all implement this interface so we can simplify log
@@ -153,12 +180,64 @@ type Encoder interface {
 type NewLineEncoder struct {
 	Encoder
 }
-
 func (nle NewLineEncoder) Encode(e interface{}) error {
 	err := nle.Encoder.Encode(e)
 	fmt.Println()
 	return err
 }
+
+type PrometheusEncoder struct {
+	Encoder
+}
+type Message struct {
+	Time time.Time `json:"Time"`
+	SCM  SCM       `json:"Message"`
+}
+type SCM struct {
+	ID          uint32  `json:"ID"`
+	Type        uint8   `json:"Type"`
+	Consumption float64 `json:"Consumption"`
+}
+var homeMeteredConsumption = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "home_metered_consumption",
+		Help: "Home consumption measurement (water, gas, electricity).",
+	},
+	[]string{"id", "type"},
+)
+func (pe PrometheusEncoder) Encode(e interface{}) error {
+	err := pe.Encoder.Encode(e)
+
+	log.Printf("hello "  )
+	s, _ := json.MarshalIndent(e, "", "\t")
+	log.Printf("%s", s)
+
+	//r := reflect.ValueOf(e)
+	//message := reflect.Indirect(r).FieldByName("Message")
+	//log.Print("%s", message)
+	//log.Print("%s", reflect.TypeOf(message))
+
+	var msg Message
+	merr := json.Unmarshal(s, &msg)
+	if merr != nil {
+		log.Println(merr)
+	}
+
+	homeMeteredConsumption.With(
+		prometheus.Labels{
+			"id":   fmt.Sprint(msg.SCM.ID),
+			"type": fmt.Sprint(msg.SCM.Type)}).Set(msg.SCM.Consumption)
+
+	log.Printf("time: %s", msg.Time)
+	log.Printf("consumption: %s", msg.SCM.Consumption)
+
+	//message_parts := reflect.ValueOf(message)
+	//con := reflect.Indirect(message_parts).FieldByName("Consumption")
+	//log.Print("con %s", con)
+	fmt.Println()
+	return err
+}
+
 
 // A Flag value that populates a map of string to bool from a comma-separated list.
 type StringMap map[string]bool
