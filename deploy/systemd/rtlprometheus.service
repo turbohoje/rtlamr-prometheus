@@ -1,0 +1,12 @@
+[Unit]
+Description=RTLAMR Prometheus
+Requires=rtltcp.service
+
+[Service]
+ExecStart=/usr/local/bin/rtlamr -filterid=98883030,70339819 -msgtype=scm,scm+  -format=prometheus
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+
